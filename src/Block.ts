@@ -1,112 +1,209 @@
 export default class Block<T> {
-  type: string; 
-  data: T; 
-  formatting: string;
+  readonly id: number;
+  type: string;
+  data: T;
+  wrapper: HTMLDivElement | undefined;
 
-  constructor(type: string, data: T, formatting: string) {
+  constructor(type: string, data: T) {
+    this.id = Math.floor(Math.random() * 1_000_000);
     this.type = type;
     this.data = data;
-    this.formatting = formatting;
+    this.wrapper = undefined;
+  }
+
+  public save() {
+    const blockData = {
+      id: this.id,
+      type: this.type,
+      data: this.data,
+    };
+
+    const jsonData = JSON.stringify(blockData);
+    localStorage.setItem("blockData", jsonData);
+    console.log("Save BlockData: ", jsonData);
+  }
+
+}
+
+export class ParagraphBlock extends Block<{ content: string }> {
+  constructor(content: string) {
+    super("paragraph", { content });
+  }
+
+  private validate(): Boolean {
+    return Boolean(this.data);
+  }
+
+  public render(): void {
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("paragraph");
+    const element = document.createElement("div");
+    element.classList.add("paragraph");
+    element.innerText = this.data.content;
+
+    element.addEventListener("input", () => {
+      const text = element.innerText;
+      this.data = { content: text };
+    });
+
+    this.save();
+    this.wrapper?.appendChild(element);
   }
 }
 
-export class ParagraphBlock extends Block<string> {
-  constructor(data: string, formatting: string) {
-    super("paragraph", data, formatting);
+export class HeadingBlock extends Block<{ content: string; level: number }> {
+  constructor(content: string, level: number) {
+    super("heading", { content, level });
+  }
+
+  public render(): void {
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("heading");
+    const element = document.createElement(`h${this.data.level}`);
+    element.classList.add("heading");
+    element.innerText = this.data.content
+
+    element.addEventListener("input", () => {
+      const text = element.innerText;
+      this.data.content = text;
+    });
+
+    const levelButton = document.querySelectorAll(".level button");
+    levelButton.forEach((button) => {
+      button.addEventListener("click", () => {
+        const selectedLevel = button.dataset.level;
+        this.data.level = parseInt(selectedLevel);
+      });
+    });
+
+    this.save();
+    this.wrapper?.appendChild(element);
+
   }
 }
 
-export class HeadingBlock extends Block<string> {
-  level: string;
+export class ImageBlock extends Block<{src: string, alt: string, caption: string}> {
+  private src: string;
+  private alt: string;
+  private caption: string;
 
-  constructor(level: string, data: string, formatting: string) {
-    super("heading", data, formatting);
-    this.level = level;
-  }
-}
-
-export class ImageBlock extends Block<{}> {
-  src: string;
-  alt: string;
-  caption: string;
-
-  constructor(src: string, alt: string, caption: string, formatting: string) {
-    super("image", {}, formatting);
-    this.src = src;
+  constructor(src: string, alt: string, caption: string) {
+    super("image", {src, alt, caption});
+    this.src = this.validateSrc(src);
     this.alt = alt;
     this.caption = caption;
   }
+
+  private validateSrc(src: string): boolean | string{
+    if(!src){
+      console.log("No image sorce provided");
+      return false;
+    }
+
+    return src;
+  }
+
+  public render(){
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("image--block");
+    const input = document.createElement('input');
+    input.type = "file"
+    input.classList.add('image');
+
+    input.addEventListener("change", (e)=>{
+      const file = e.target?.files[0];
+      if(file){
+        this._uploadImage(file).then(src =>{
+          this.data.src = src;
+          this._displayImage(src, this.alt);
+        })
+      }
+    })
+    
+  }
+
+  async _uploadImage(image: File): Promise<string>{
+    const respose = await fetch("/upload", {image});
+    return `http:localhost:3000/upload/399288100.jpg`
+  }
+
+  _displayImage(source: string, alt=""){
+    const imageElement = document.createElement('img');
+    imageElement.src = source;
+
+  }
+
 }
 
 export class LinkBlock extends Block<string> {
-  url: string;
+  private url: string;
 
-  constructor(url: string, data: string, formatting: string) {
-    super("link", data, formatting);
+  constructor(url: string, data: string) {
+    super("link", data);
     this.url = url;
   }
 }
 
 export class CodeBlock extends Block<string> {
-  language: string;
+  private language: string;
 
-  constructor(language: string, data: string, formatting: string) {
-    super("code", data, formatting);
+  constructor(language: string, data: string) {
+    super("code", data);
     this.language = language;
   }
 }
 
 export class MarkdownBlock extends Block<string> {
-  constructor(data: string, formatting: string) {
-    super("markdown", data, formatting);
+  constructor(data: string) {
+    super("markdown", data);
   }
 }
 
 export class NumberBlock extends Block<string> {
-  constructor(data: string, formatting: string) {
-    super("number", data, formatting);
+  constructor(data: string) {
+    super("number", data);
   }
 }
 
 export class BulletBlock extends Block<string> {
-  constructor(data: string, formatting: string) {
-    super("bullet", data, formatting);
+  constructor(data: string) {
+    super("bullet", data);
+  }
+}
+export class ListBlock extends Block<string[]> {
+  constructor(data: string[]) {
+    super("list", data);
   }
 }
 
 export class QuoteBlock extends Block<string> {
-  constructor(data: string, formatting: string) {
-    super("quote", data, formatting);
+  constructor(data: string) {
+    super("quote", data);
   }
 }
 
 export class SubpageBlock extends Block<string> {
-  pageId: string | number;
-  
-  constructor(pageId: string, data: string, formatting: string) {
-    super("subpage", data, formatting);
+  private pageId: string | number;
+
+  constructor(pageId: string, data: string) {
+    super("subpage", data);
     this.pageId = pageId;
   }
 }
 
 export class TableBlock extends Block<string> {
-  rows: number;
-  columns: number;
+  private rows: number;
+  private columns: number;
 
-  constructor(rows: number, columns: number, data: string, formatting: string) {
-    super("table", data, formatting);
+  constructor(rows: number, columns: number, data: string) {
+    super("table", data);
     this.rows = rows;
     this.columns = columns;
   }
 }
 
 export class BoardViewBlock extends Block<string> {
-  constructor(data: string, formatting: string) {
-    super("board", data, formatting);
+  constructor(data: string) {
+    super("board", data);
   }
 }
-
-
-
-
-
