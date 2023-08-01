@@ -1,7 +1,8 @@
 export default class Block<T> {
-  readonly id: number;
-  type: string;
-  data: T;
+  private readonly id: number;
+  private type: string;
+  private data: T;
+  wrapper: HTMLDivElement | undefined;
 
   constructor(type: string, data: T) {
     this.id = Math.floor(Math.random() * 1_000_000);
@@ -10,7 +11,16 @@ export default class Block<T> {
     this.wrapper = undefined;
   }
 
-  public save() {
+  public setData(data: T): T{
+    this.data = data
+    return this.data
+  }
+
+  public getData(){
+    return this.data
+  }
+
+  public save(): void {
     const blockData = {
       id: this.id,
       type: this.type,
@@ -21,15 +31,24 @@ export default class Block<T> {
     localStorage.setItem("blockData", jsonData);
     console.log("Save BlockData: ", jsonData);
   }
+
+  public setWrapper(wrapper: HTMLDivElement | undefined){
+    this.wrapper = wrapper;
+  }
+  // public abstract render(): void;
 }
 
-export class ParagraphBlock extends Block<{ content: string }> {
+export interface ParagraphData {
+  content: string;
+}
+
+export class ParagraphBlock extends Block<ParagraphData> {
   constructor(content: string) {
     super("paragraph", { content });
   }
 
-  private validate(): Boolean {
-    return Boolean(this.data);
+  private validate(): boolean {
+    return Boolean(this.getData().content);
   }
 
   public render(): void {
@@ -37,11 +56,13 @@ export class ParagraphBlock extends Block<{ content: string }> {
     wrapper.classList.add("paragraph");
     const element = document.createElement("div");
     element.classList.add("paragraph");
-    element.innerText = this.data.content;
+    element.textContent = this.getData().content;
 
     element.addEventListener("input", () => {
-      const text = element.innerText;
-      this.data = { content: text };
+      const text = element.textContent;
+      if (text) {
+        this.getData().content = text;
+      }
     });
 
     this.save();
@@ -49,7 +70,12 @@ export class ParagraphBlock extends Block<{ content: string }> {
   }
 }
 
-export class HeadingBlock extends Block<{ content: string; level: number }> {
+export interface HeadingData {
+  content: string;
+  level: number;
+}
+
+export class HeadingBlock extends Block<HeadingData> {
   constructor(content: string, level: number) {
     super("heading", { content, level });
   }
@@ -57,33 +83,42 @@ export class HeadingBlock extends Block<{ content: string; level: number }> {
   public render(): void {
     const wrapper = document.createElement("div");
     wrapper.classList.add("heading");
-    const element = document.createElement(`h${this.data.level}`);
+    const element = document.createElement(`h${this.getData().level}`);
     element.classList.add("heading");
-    element.textContent = this.data.content;
+    element.textContent = this.getData().content;
 
     element.addEventListener("input", () => {
-      const text = element.innerText;
-      this.data.content = text;
+      const text = element.textContent;
+      if (text) {
+        this.getData().content = text;
+      }
     });
 
-    const levelButton = document.querySelectorAll(".level button");
-    levelButton.forEach((button) => {
-      button.addEventListener("click", () => {
-        const selectedLevel = button.dataset.level;
-        this.data.level = parseInt(selectedLevel);
+    const levelButtonContainer = document.querySelector(".level");
+    if (levelButtonContainer) {
+      levelButtonContainer.addEventListener("click", (event) => {
+        const target = event.target as HTMLElement;
+        if (target.matches("button")) {
+          const selectedLevel = target.dataset.level;
+          if (selectedLevel) {
+            this.getData().level = parseInt(selectedLevel);
+          }
+        }
       });
-    });
+    }
 
     this.save();
     this.wrapper?.appendChild(element);
   }
 }
 
-export class ImageBlock extends Block<{
+export interface ImageData {
   src: string;
   alt: string;
   caption: string;
-}> {
+}
+
+export class ImageBlock extends Block<ImageData> {
   private src: string;
   private alt: string;
   private caption: string;
@@ -95,16 +130,14 @@ export class ImageBlock extends Block<{
     this.caption = caption;
   }
 
-  private validateSrc(src: string): boolean | string {
+  private validateSrc(src: string): string {
     if (!src) {
-      console.log("No image sorce provided");
-      return false;
+      throw new Error("No image source provided");
     }
-
     return src;
   }
 
-  public render() {
+  public render(): void {
     const wrapper = document.createElement("div");
     wrapper.classList.add("image--block");
     const input = document.createElement("input");
@@ -112,7 +145,7 @@ export class ImageBlock extends Block<{
     input.classList.add("image");
 
     input.addEventListener("change", (e) => {
-      const file = e.target?.files[0];
+      const file = (e.target as HTMLInputElement)?.files?.[0];
       if (file) {
         this._uploadImage(file).then((src) => {
           this.data.src = src;
@@ -120,28 +153,38 @@ export class ImageBlock extends Block<{
         });
       }
     });
+
+    wrapper.appendChild(input);
+    this.wrapper?.appendChild(wrapper);
   }
 
-  async _uploadImage(image: File): Promise<string> {
-    const respose = await fetch("/upload", image );
-    return `http:localhost:3000/upload/399288100.jpg`;
+  private async _uploadImage(image: File): Promise<string> {
+    // Replace with actual upload logic
+    const response = await fetch("/upload", { method: "POST", body: image });
+    const responseData = await response.json();
+    return responseData.src;
   }
 
-  _displayImage(source: string, alt = "") {
+  private _displayImage(source: string, alt = ""): void {
     const imageElement = document.createElement("img");
     imageElement.src = source;
+    imageElement.alt = alt;
 
-    this.wrapper?.appendChild(imageElement)
+    this.wrapper?.appendChild(imageElement);
   }
 }
-
-export class LinkBlock extends Block<{ url: string; caption: string }> {
+interface LinkBlockData{
+  url: string; caption: string
+}
+export class LinkBlock extends Block<LinkBlockData> {
   private url: string;
 
   constructor(url: string, caption: string) {
     super("link", { url, caption });
     this.url = url;
   }
+
+
 
   public render() {
     const wrapper = document.createElement("span");
@@ -158,6 +201,10 @@ export class LinkBlock extends Block<{ url: string; caption: string }> {
         if (input.value === "" && caption.value === "") {
           return false;
         }
+        link.href = this.data.url;
+        link.textContent = this.data.caption;
+        link.target = "_blank";
+        link.classList.add("link");
       }
     );
     caption.addEventListener("blur", () => {
@@ -167,10 +214,6 @@ export class LinkBlock extends Block<{ url: string; caption: string }> {
       }
     );
 
-    link.href = this.data.url;
-    link.textContent = this.data.caption;
-    link.target = "_blank";
-    link.classList.add("link");
   }
 }
 
@@ -180,7 +223,14 @@ export class CodeBlock extends Block<{ content: string; language: string }> {
   }
 
   public render(){
-    const wrapper = document.createElement("div")
+    const wrapper = document.createElement("div");
+    const copyCode = document.createElement("span");
+
+    wrapper.classList.add("markdown");
+    wrapper.contentEditable = "true";
+    copyCode.classList.add("coppy--code");
+
+    
   }
 }
 
