@@ -4,7 +4,6 @@ interface RenderableBlock {
 
 interface SaveBlock {
   save(): void;
-  update(): void;
 }
 
 export abstract class Block<T> implements SaveBlock {
@@ -44,7 +43,7 @@ export abstract class Block<T> implements SaveBlock {
     return this.data;
   }
 
-  public async save(): Promise<void> {
+  public async save(path?: string): Promise<void> {
     const blockData = {
       id: this.id,
       type: this.type,
@@ -52,7 +51,7 @@ export abstract class Block<T> implements SaveBlock {
     };
 
     try {
-      const response = await fetch("path/file", {
+      const response = await fetch(`${path}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -67,9 +66,6 @@ export abstract class Block<T> implements SaveBlock {
     }
   }
 
-  public update(): void {
-    //
-  }
 }
 
 export interface ParagraphData {
@@ -195,6 +191,10 @@ export class ImageBlock extends Block<ImageData> {
 
   private async _uploadImage(image: File): Promise<string> {
     // Replace with actual upload logic
+    const formData = new FormData();
+    formData.append("file", image);
+    formData.append("Content-Type", image.type);
+    
     const response = await fetch("/upload", { method: "POST", body: image });
     const responseData = await response.json();
     return responseData.src;
