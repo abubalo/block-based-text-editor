@@ -1,9 +1,18 @@
+import remarkParse from "remark-parse"
+
 interface RenderableBlock {
   render(): void;
 }
 
 interface SaveBlock {
   save(): void;
+}
+
+interface SanitizeHTML{
+  sanitize(): void;
+}
+interface ValidateInput{
+  validate(): void;
 }
 
 export abstract class Block<T> implements SaveBlock {
@@ -20,26 +29,26 @@ export abstract class Block<T> implements SaveBlock {
   }
 
   private generateRandomID(): string {
-    const characters: string =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    const characterLength = characters.length;
-    const idLength = 10;
+    const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$£&()#!";
+    const idLength = 15;
+    const timestamp = Date.now().toString(36);  // Convert timestamp to base36 string
     let randomID = "";
-
-    for (let i = 0; i < idLength; i++) {
-      const randomIndex = Math.floor(Math.random() * characterLength);
-      randomID += characters.charAt(randomIndex);
+  
+    for (let i = 0; i < idLength - timestamp.length; i++) {
+      const randomIndex = Math.floor(Math.random() * characters.length);
+      randomID += characters[randomIndex];
     }
-
-    return randomID;
+  
+    return timestamp + randomID;
   }
+  
 
   public setData(data: T): T {
     this.data = data;
     return this.data;
   }
 
-  public getData() {
+  public getData(): T {
     return this.data;
   }
 
@@ -65,15 +74,57 @@ export abstract class Block<T> implements SaveBlock {
       throw error;
     }
   }
+}
 
+
+
+// Define the observer interface
+interface BlockObserver<T> {
+  onBlockUpdated(updatedBlock: ObservableBlock<T>): void;
+}
+
+// Define an event interface for the observable
+interface ObservableEvent<T> {
+  event: string;
+  data: T;
+}
+
+// The ObservableBlock class
+abstract class ObservableBlock<T> extends Block<T> {
+  private observers: BlockObserver<T>[] = [];
+
+  subscribe(observer: BlockObserver<T>) {
+    this.observers.push(observer);
+  }
+
+  unsubscribe(observer: BlockObserver<T>) {
+    const index = this.observers.indexOf(observer);
+    if (index !== -1) {
+      this.observers.splice(index, 1);
+    }
+  }
+
+  protected notifyObservers(event: string, data: any) {
+    const observableEvent: ObservableEvent<T> = { event, data };
+    this.observers.forEach(observer => {
+      observer.onBlockUpdated(observableEvent);
+    });
+  }
+  
+  // The method that triggers the update
+  setData(data: T): T {
+    const oldData = this.data;
+    super.setData(data);
+    this.notifyObservers("block-updated", { oldData, newData: data });
+    return this.data;
+  }
 }
 
 export interface ParagraphData {
   content: string;
 }
 
-export class ParagraphBlock extends Block<ParagraphData> implements RenderableBlock
-{
+export class ParagraphBlock extends ObservableBlock<ParagraphData> implements RenderableBlock {
   constructor(content: string) {
     super("paragraph", { content });
   }
@@ -106,8 +157,7 @@ export interface HeadingData {
   level: number;
 }
 
-export class HeadingBlock extends Block<HeadingData> implements RenderableBlock
-{
+export class HeadingBlock extends ObservableBlock<HeadingData> implements RenderableBlock {
   constructor(content: string, level: number) {
     super("heading", { content, level });
   }
@@ -149,7 +199,7 @@ export interface ImageData {
   caption: string;
 }
 
-export class ImageBlock extends Block<ImageData> {
+export class ImageBlock extends ObservableBlock<ImageData> implements RenderableBlock {
   private src: string;
   private alt: string;
   private caption: string;
@@ -195,7 +245,7 @@ export class ImageBlock extends Block<ImageData> {
     formData.append("file", image);
     formData.append("Content-Type", image.type);
     
-    const response = await fetch("/upload", { method: "POST", body: image });
+    const response = await fetch("/upload", { method: "POST", body: formData });
     const responseData = await response.json();
     return responseData.src;
   }
@@ -208,12 +258,13 @@ export class ImageBlock extends Block<ImageData> {
     this.wrapper?.appendChild(imageElement);
   }
 }
+
 interface LinkBlockData {
   url: string;
   caption: string;
 }
 
-export class LinkBlock extends Block<LinkBlockData> implements RenderableBlock {
+export class LinkBlock extends ObservableBlock<LinkBlockData> implements RenderableBlock {
   private url: string;
 
   constructor(url: string, caption: string) {
@@ -221,7 +272,7 @@ export class LinkBlock extends Block<LinkBlockData> implements RenderableBlock {
     this.url = url;
   }
 
-  public render() {
+  public render(): void {
     const wrapper = document.createElement("span");
     const input = document.createElement("input");
     const caption = document.createElement("input");
@@ -254,51 +305,68 @@ interface CodeBlockData {
   language: string;
 }
 
-export class CodeBlock extends Block<CodeBlockData> implements RenderableBlock {
+export class CodeBlock extends ObservableBlock<CodeBlockData> implements RenderableBlock {
   constructor(content: string, language: string) {
     super("code", { content, language });
   }
 
-  public render() {
+  public render(): void {
     const wrapper = document.createElement("div");
     const copyCode = document.createElement("span");
 
-    wrapper.classList.add("markdown");
+    wrapper.classList.add("markdown code--block");
     wrapper.contentEditable = "true";
     copyCode.classList.add("coppy--code");
   }
 }
 
-export class MarkdownBlock extends Block<string> {
+export class MarkdownBlock extends ObservableBlock<string> implements RenderableBlock {
   constructor(data: string) {
     super("markdown", data);
   }
-}
 
-export class NumberBlock extends Block<string> {
-  constructor(data: string) {
-    super("number", data);
+  public render(): void {
+    // const wrapper = document.createElement('div');
+    // const markdownContent = this.getData();
+
+    // const processor = remarkParse().use(highlight);
+
+    // const parsedMarkdown = processor.processSync(markdownContent).toString();
+    // wrapper.innerHTML = parsedMarkdown;
+
+    // this.wrapper?.appendChild(wrapper);
   }
 }
 
-export class BulletBlock extends Block<string> {
+export class NumberBlock extends ObservableBlock<string> implements RenderableBlock {
+  constructor(data: string) {
+    super("number", data);
+  }
+
+  render (){
+
+  }
+}
+
+export class BulletBlock extends ObservableBlock<string> {
   constructor(data: string) {
     super("bullet", data);
   }
 }
-export class ListBlock extends Block<string[]> {
+
+export class ListBlock extends ObservableBlock<string[]> {
   constructor(data: string[]) {
     super("list", data);
   }
 }
 
-export class QuoteBlock extends Block<string> {
+export class QuoteBlock extends ObservableBlock<string> {
   constructor(data: string) {
     super("quote", data);
   }
 }
 
-export class SubpageBlock extends Block<string> {
+export class SubpageBlock extends ObservableBlock<string> {
   private pageId: string | number;
 
   constructor(pageId: string, data: string) {
@@ -307,7 +375,7 @@ export class SubpageBlock extends Block<string> {
   }
 }
 
-export class TableBlock extends Block<string> {
+export class TableBlock extends ObservableBlock<string> {
   private rows: number;
   private columns: number;
 
@@ -318,8 +386,10 @@ export class TableBlock extends Block<string> {
   }
 }
 
-export class BoardViewBlock extends Block<string> {
+export class BoardViewBlock extends ObservableBlock<string> {
   constructor(data: string) {
     super("board", data);
   }
 }
+
+
