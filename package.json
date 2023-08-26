@@ -1,5 +1,7 @@
 {
-  "name": "text-editor",
+  "name": "block-based-text-editor",
+  "author": "Abubkar Balogun",
+  "license": "MIT",
   "scripts": {
     "start": "node dist/index.js",
     "build": "tsc",
@@ -9,5 +11,9 @@
   "dependencies": {
     "ts-node-dev": "^2.0.0",
     "typescript": "^4.5.2"
+  },
+  "devDependencies": {
+    "dompurify": "^3.0.5",
+    "remark-parse": "^10.0.2"
   }
 }
