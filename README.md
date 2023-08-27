@@ -1,4 +1,4 @@
-# Text Editor
+# Rich Text Editor
 
 This code provides a simplified version of a block-based editor. It demonstrates the basic structure and functionality of creating different types of content blocks and rendering them in a wrapper element.
 
