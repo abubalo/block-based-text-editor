@@ -1,7 +1,17 @@
-import { CodeBlock, HeadingBlock, ImageBlock, LinkBlock, MarkdownBlock, ParagraphBlock } from "./Block";
+import { CodeBlock, HeadingBlock, ImageBlock, LinkBlock, MarkdownBlock, ParagraphBlock, } from "./Block";
+
+interface BlockData {
+  content: string; 
+  level: number;
+  src: string;
+  alt: string;
+  caption: string;
+  url: string;
+  language: string;
+}
 
 export class BlockFactory {
-  public static createBlock<T>(type: string, data: T){
+  public static createBlock<T extends BlockData>(type: string, data: T){
     switch (type) {
       case "paragraph":
         return new ParagraphBlock(data.content);
@@ -14,7 +24,7 @@ export class BlockFactory {
       case "code":
         return new CodeBlock(data.content, data.language);
       case "markdown":
-        return new MarkdownBlock(data.content, data.language);
+         return new MarkdownBlock(data.content, data.language);
 
       default:
         throw new Error(`Unsupported block type: ${type}`);
